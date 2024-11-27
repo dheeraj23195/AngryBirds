@@ -40,6 +40,10 @@ public class GameScreen implements Screen, InputProcessor {
     private static final float TIME_STEP = 1/60f;
     private static final int VELOCITY_ITERATIONS = 6;
     private static final int POSITION_ITERATIONS = 2;
+    short CATEGORY_BIRD = 0x0002;        // Bird's collision category
+    short CATEGORY_SLINGSHOT = 0x0004;  // Slingshot's collision category
+    short MASK_BIRD = (short) (0xFFFF & ~CATEGORY_SLINGSHOT); // Collide with everything except slingshot
+
 
     private World physicsWorld;
     private Box2DDebugRenderer debugRenderer;
@@ -74,7 +78,7 @@ public class GameScreen implements Screen, InputProcessor {
     }
 
     private void initializeBox2D() {
-        physicsWorld = new World(new Vector2(0, -9.81f), true);
+        physicsWorld = new World(new Vector2(0, -9.81f/4f), true);
         debugRenderer = new Box2DDebugRenderer();
         setupPhysicsWorld();
         initializeCollisionListener();
@@ -235,6 +239,10 @@ public class GameScreen implements Screen, InputProcessor {
         fixture.density = 4.0f;
         fixture.friction = 0.3f;
         fixture.restitution = 0.4f;
+        Filter birdFilter = new Filter();
+        birdFilter.categoryBits = CATEGORY_BIRD;
+        birdFilter.maskBits = MASK_BIRD;  // Avoid collision with slingshot
+        birdFixtureDef.filter = birdFilter;
 
         body.createFixture(fixture);
         body.setUserData(bird);
@@ -248,18 +256,18 @@ public class GameScreen implements Screen, InputProcessor {
         if (!currentLevel.getBirds().isEmpty() && !birdStopped) {
             gameStarted = true;
             Bird currentBird = currentLevel.getBirds().get(0);
-
             Vector2 dragVector = slingAnchor.cpy().sub(currentDrag);
-            float distance = dragVector.len();
-            float launchPower = (distance / MAX_DRAG_DISTANCE) * 25f;
+            float distance = Math.min(dragVector.len(), MAX_DRAG_DISTANCE);
+            float launchPower = (distance / MAX_DRAG_DISTANCE) * LAUNCH_SPEED_MULTIPLIER;
             Vector2 impulse = dragVector.nor().scl(launchPower);
-            createBirdBody(currentBird, currentDrag);
+            createBirdBody(currentBird, slingAnchor);
             Body birdBody = bodyMap.get(currentBird);
-            birdBody.setLinearVelocity(toBox2D(impulse.x), toBox2D(impulse.y));
+            birdBody.setLinearVelocity(impulse.scl(1 / PPM));
             birdBody.setBullet(true);
             birdLaunched = true;
         }
     }
+
 
 
     private void initializeCollisionListener() {

@@ -11,7 +11,7 @@ public class Box2DPhysicsWorld {
     private static final int POSITION_ITERATIONS = 2;
 
     public Box2DPhysicsWorld() {
-        physicsWorld = new World(new Vector2(0, -9.81f), true);
+        physicsWorld = new World(new Vector2(0, -9.81f/4f), true);
     }
 
     // Helper method to convert game coordinates to Box2D coordinates
