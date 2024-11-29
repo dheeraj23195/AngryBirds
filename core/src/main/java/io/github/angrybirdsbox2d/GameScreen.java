@@ -17,9 +17,8 @@ import com.badlogic.gdx.scenes.scene2d.ui.ImageButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.List;
+
+import java.util.*;
 
 public class GameScreen implements Screen, InputProcessor {
     private final AngryBirdsGame game;
@@ -28,21 +27,19 @@ public class GameScreen implements Screen, InputProcessor {
     private Texture slingBackImg;
     private Texture slingFrontImg;
     private float slingX, slingY, slingW, slingH;
-    private static final float PIG_SIZE = 50f;
+    private static final float PIG_SIZE = 35f;
     private static final float SLING_SCALE = 0.07f;
     private static final float BIRD_SCALE = 0.8f;
-    private static final float LAUNCH_SPEED_MULTIPLIER = 5f;
-    private static final float PPM = 32f;
+    private static final float LAUNCH_SPEED_MULTIPLIER = 7f;
+    private static final float PPM = 100f;
     private static final float MAX_DRAG_DISTANCE = 100f;
     private static final float RUBBER_BAND_TENSION = 0.8f;
-    private static final float SLINGSHOT_DAMPING = 0.85f;
     private static final int TRAJECTORY_POINTS = 20;
     private static final float TIME_STEP = 1/60f;
     private static final int VELOCITY_ITERATIONS = 6;
     private static final int POSITION_ITERATIONS = 2;
-    short CATEGORY_BIRD = 0x0002;        // Bird's collision category
-    short CATEGORY_SLINGSHOT = 0x0004;  // Slingshot's collision category
-    short MASK_BIRD = (short) (0xFFFF & ~CATEGORY_SLINGSHOT); // Collide with everything except slingshot
+    private static final float GRAVITY=-9.81f/6f;
+    private static final float GROUND_HEIGHT = Gdx.graphics.getHeight() * 0.132f;
 
 
     private World physicsWorld;
@@ -59,6 +56,11 @@ public class GameScreen implements Screen, InputProcessor {
     private boolean birdStopped;
     private boolean gameStarted;
     private boolean gamePaused;
+    private Set<Body> bodiesToDestroy = new HashSet<>();
+    private boolean levelCompleted = false;
+    private boolean levelWon = false;
+    private boolean showingWinLossPopup = false;
+
 
     private Stage mainStage;
     private PauseMenuScreen pauseScreen;
@@ -78,7 +80,7 @@ public class GameScreen implements Screen, InputProcessor {
     }
 
     private void initializeBox2D() {
-        physicsWorld = new World(new Vector2(0, -9.81f/4f), true);
+        physicsWorld = new World(new Vector2(0, GRAVITY), true);
         debugRenderer = new Box2DDebugRenderer();
         setupPhysicsWorld();
         initializeCollisionListener();
@@ -112,20 +114,23 @@ public class GameScreen implements Screen, InputProcessor {
     }
 
     private void setupPhysicsWorld() {
+        // Ground setup
         BodyDef groundDef = new BodyDef();
         groundDef.type = BodyDef.BodyType.StaticBody;
-        groundDef.position.set(0, toBox2D(slingY+50f));
+        groundDef.position.set(0, toBox2D(GROUND_HEIGHT));
 
         Body ground = physicsWorld.createBody(groundDef);
         PolygonShape groundShape = new PolygonShape();
-        groundShape.setAsBox(toBox2D(Gdx.graphics.getWidth()), toBox2D(55));
+        groundShape.setAsBox(toBox2D(Gdx.graphics.getWidth()), toBox2D(5));
 
         FixtureDef groundFixture = new FixtureDef();
         groundFixture.shape = groundShape;
-        groundFixture.friction = 0.5f;
+        groundFixture.friction = 0.7f;
+        groundFixture.restitution = 0.1f;
 
         ground.createFixture(groundFixture);
         groundShape.dispose();
+
         createInitialBodies();
     }
 
@@ -143,7 +148,6 @@ public class GameScreen implements Screen, InputProcessor {
         BodyDef bodyDef = new BodyDef();
         bodyDef.type = BodyDef.BodyType.DynamicBody;
 
-        // Position the body at the center of the sprite
         bodyDef.position.set(
             toBox2D(block.getX() + Block.WIDTH/2),
             toBox2D(block.getY() + Block.HEIGHT/2)
@@ -151,14 +155,12 @@ public class GameScreen implements Screen, InputProcessor {
 
         Body body = physicsWorld.createBody(bodyDef);
         PolygonShape shape = new PolygonShape();
-
-        // Create the box around the center point
         shape.setAsBox(toBox2D(Block.WIDTH/2), toBox2D(Block.HEIGHT/2));
 
         FixtureDef fixtureDef = new FixtureDef();
         fixtureDef.shape = shape;
         fixtureDef.density = 1.0f;
-        fixtureDef.friction = 0.4f;
+        fixtureDef.friction = 0.9f;
         fixtureDef.restitution = 0.2f;
 
         body.createFixture(fixtureDef);
@@ -178,13 +180,12 @@ public class GameScreen implements Screen, InputProcessor {
         Body body = physicsWorld.createBody(bodyDef);
         CircleShape shape = new CircleShape();
         Vector2 center = new Vector2(-toBox2D(PIG_SIZE/4), -toBox2D(PIG_SIZE/4));
-        //shape.setPosition(center);
         shape.setRadius(toBox2D(PIG_SIZE/2));
 
         FixtureDef fixtureDef = new FixtureDef();
         fixtureDef.shape = shape;
         fixtureDef.density = 1.0f;
-        fixtureDef.friction = 0.3f;
+        fixtureDef.friction = 0.7f;
         fixtureDef.restitution = 0.3f;
 
         body.createFixture(fixtureDef);
@@ -193,79 +194,50 @@ public class GameScreen implements Screen, InputProcessor {
         shape.dispose();
     }
 
-    private void drawDebugDots() {
-        shapeRenderer.begin(ShapeRenderer.ShapeType.Filled);
-        shapeRenderer.setColor(Color.RED);
-        for (Body body : bodyMap.values()) {
-            Vector2 center = body.getPosition();
-            shapeRenderer.circle(toPixels(center.x), toPixels(center.y), 3);
-        }
-        shapeRenderer.setColor(Color.BLACK);
-        for (Block block : currentLevel.getBlocks()) {
-            shapeRenderer.circle(block.getX(), block.getY(), 3);
-        }
-        for (Pig pig : currentLevel.getPigs()) {
-            shapeRenderer.circle(pig.getX(), pig.getY(), 3);
-        }
-
-        shapeRenderer.end();
-    }
-
-    private void updateGameObjects() {
-        for (Map.Entry<GameObject, Body> entry : bodyMap.entrySet()) {
-            GameObject obj = entry.getKey();
-            Body body = entry.getValue();
-            Vector2 position = body.getPosition();
-            obj.setX(toPixels(position.x) - Block.WIDTH/2);
-            obj.setY(toPixels(position.y) - Block.HEIGHT/2);
-        }
-    }
-    private void createBirdBody(Bird bird, Vector2 position) {
-        BodyDef bodyDef = new BodyDef();
-        bodyDef.type = BodyDef.BodyType.DynamicBody;
-        bodyDef.position.set(toBox2D(position.x), toBox2D(position.y));
-
-        Body body = physicsWorld.createBody(bodyDef);
-        CircleShape shape = new CircleShape();
-        if(bird.getBirdType()==BirdType.RED){
-            shape.setRadius(toBox2D(bird.getRadius()-5));
-        } else if (bird.getBirdType()==BirdType.BLACK) {
-            shape.setRadius(toBox2D(bird.getRadius()));
-        } else{
-            shape.setRadius(toBox2D(bird.getRadius()-10));
-        }
-        FixtureDef fixture = new FixtureDef();
-        fixture.shape = shape;
-        fixture.density = 4.0f;
-        fixture.friction = 0.3f;
-        fixture.restitution = 0.4f;
-        Filter birdFilter = new Filter();
-        birdFilter.categoryBits = CATEGORY_BIRD;
-        birdFilter.maskBits = MASK_BIRD;  // Avoid collision with slingshot
-        birdFixtureDef.filter = birdFilter;
-
-        body.createFixture(fixture);
-        body.setUserData(bird);
-        bodyMap.put(bird, body);
-        shape.dispose();
-        body.setAngularDamping(0.8f);
-        body.setLinearDamping(0.2f);
-    }
-
     private void launchBird() {
         if (!currentLevel.getBirds().isEmpty() && !birdStopped) {
             gameStarted = true;
             Bird currentBird = currentLevel.getBirds().get(0);
-            Vector2 dragVector = slingAnchor.cpy().sub(currentDrag);
-            float distance = Math.min(dragVector.len(), MAX_DRAG_DISTANCE);
-            float launchPower = (distance / MAX_DRAG_DISTANCE) * LAUNCH_SPEED_MULTIPLIER;
-            Vector2 impulse = dragVector.nor().scl(launchPower);
-            createBirdBody(currentBird, slingAnchor);
-            Body birdBody = bodyMap.get(currentBird);
-            birdBody.setLinearVelocity(impulse.scl(1 / PPM));
-            birdBody.setBullet(true);
-            birdLaunched = true;
+            Vector2 dragVector = currentDrag.cpy().sub(slingAnchor);
+
+            if (dragVector.len() > 0) {
+                float distance = Math.min(dragVector.len(), MAX_DRAG_DISTANCE);
+                dragVector.nor().scl(distance);
+
+                createBirdBody(currentBird, currentDrag);
+                Body birdBody = bodyMap.get(currentBird);
+
+                float launchPower = (distance / MAX_DRAG_DISTANCE) * LAUNCH_SPEED_MULTIPLIER;
+                Vector2 launchVelocity = dragVector.scl(-launchPower);
+
+                birdBody.setLinearVelocity(launchVelocity.x / PPM, launchVelocity.y / PPM);
+                birdBody.setBullet(true);
+
+                birdLaunched = true;
+            }
         }
+    }
+
+    private void createBirdBody(Bird bird, Vector2 position) {
+        BodyDef bodyDef = new BodyDef();
+        bodyDef.type = BodyDef.BodyType.DynamicBody;
+        bodyDef.position.set(toBox2D(position.x), toBox2D(position.y));
+        bodyDef.bullet = true;
+
+        Body body = physicsWorld.createBody(bodyDef);
+        CircleShape shape = new CircleShape();
+        shape.setRadius(toBox2D(bird.getRadius()));
+
+        FixtureDef fixtureDef = new FixtureDef();
+        fixtureDef.shape = shape;
+        fixtureDef.density = 3.0f;         // Increased from 1.0f
+        fixtureDef.friction = 0.5f;        // Reduced from 0.9f
+        fixtureDef.restitution = 0.3f;     // Increased from 0.02f
+
+        body.createFixture(fixtureDef);
+        body.setUserData(bird);
+        bodyMap.put(bird, body);
+        shape.dispose();
     }
 
 
@@ -290,44 +262,76 @@ public class GameScreen implements Screen, InputProcessor {
         });
     }
 
-    private void handleCollision(Body bodyA, Body bodyB) {
-        Object userDataA = bodyA.getUserData();
-        Object userDataB = bodyB.getUserData();
-        float impactForce = calculateImpactForce(bodyA, bodyB);
+    private void handleBirdBlockCollision(Object objectA, Object objectB, float impactForce) {
+        if ((objectA instanceof Bird && objectB instanceof Block) ||
+            (objectB instanceof Bird && objectA instanceof Block)) {
+            Bird bird = (Bird)(objectA instanceof Bird ? objectA : objectB);
+            Block block = (Block)(objectA instanceof Block ? objectA : objectB);
 
-        if (userDataA instanceof Bird && userDataB instanceof Block) {
-            handleBirdBlockCollision((Bird)userDataA, (Block)userDataB, impactForce);
-        } else if (userDataB instanceof Bird && userDataA instanceof Block) {
-            handleBirdBlockCollision((Bird)userDataB, (Block)userDataA, impactForce);
-        }
-    }
+            float damageMultiplier = impactForce / 20f;  // Changed from 50f
+            int damage = (int)(bird.getDamage() * damageMultiplier);
+            block.takeDamage(damage);
 
-    private float calculateImpactForce(Body bodyA, Body bodyB) {
-        Vector2 velA = bodyA.getLinearVelocity();
-        Vector2 velB = bodyB.getLinearVelocity();
-        return velA.sub(velB).len();
-    }
-
-    private void handleBirdBlockCollision(Bird bird, Block block, float impactForce) {
-        float damageMultiplier = impactForce / 500f;
-        int damage = (int)(bird.getDamage() * damageMultiplier);
-        block.takeDamage(damage);
-
-        if (block.isDestroyed()) {
-            Body blockBody = bodyMap.get(block);
-            if (blockBody != null) {
-                physicsWorld.destroyBody(blockBody);
-                bodyMap.remove(block);
+            if (block.isDestroyed()) {
+                Body blockBody = bodyMap.get(block);
+                if (blockBody != null) {
+                    bodiesToDestroy.add(blockBody);
+                    bodyMap.remove(block);
+                    currentLevel.getBlocks().remove(block);
+                }
             }
-            currentLevel.getBlocks().remove(block);
         }
+    }
+
+    private void resetForNextBird() {
+        birdLaunched = false;
+        birdStopped = false;
+        isDragging = false;
+        gameStarted = false;
+    }
+
+    private void checkLevelCompletion() {
+        if (!showingWinLossPopup) {
+            boolean noMorePigs = currentLevel.getPigs().isEmpty();
+            boolean noMoreBirds = currentLevel.getBirds().isEmpty();
+
+            if (noMorePigs) {
+                int stars = calculateStars();
+                currentLevel.setRating(stars);
+                if (stars >= 2) {
+                    LevelsScreen.unlockNextLevel(currentLevel.getNumber());
+                }
+
+                showingWinLossPopup = true;
+                gamePaused = true;
+                pauseScreen.showWinLoss(true, stars);
+            } else if (noMoreBirds && !birdLaunched) {
+                showingWinLossPopup = true;
+                gamePaused = true;
+                pauseScreen.showWinLoss(false, 0);
+            }
+        }
+    }
+
+    private int calculateStars() {
+        int totalBirdsAtStart = LevelsScreen.getAvailableBirdsForLevel(currentLevel.getNumber()).size();
+        int birdsUsed = totalBirdsAtStart - currentLevel.getBirds().size();
+
+        // Base score on birds used
+        int stars = 3;
+
+        // Deduct stars based on birds used
+        if (birdsUsed > 1) stars--;
+        if (birdsUsed > 2) stars--;
+
+        return Math.max(1, stars);  // Ensure at least 1 star for completing level
     }
 
     @Override
     public boolean touchDown(int screenX, int screenY, int pointer, int button) {
         Vector2 touchPos = new Vector2(screenX, Gdx.graphics.getHeight() - screenY);
 
-        if (!gameStarted && !currentLevel.getBirds().isEmpty() && isNearSlingshot(touchPos)) {
+        if (!birdLaunched && !currentLevel.getBirds().isEmpty() && isNearSlingshot(touchPos)) {
             isDragging = true;
             dragStart = touchPos;
             currentDrag = touchPos;
@@ -355,7 +359,6 @@ public class GameScreen implements Screen, InputProcessor {
 
             float tensionFactor = (dragDistance / MAX_DRAG_DISTANCE) * RUBBER_BAND_TENSION;
             dragVector.scl(1 - tensionFactor);
-
             updateTempBirdPosition();
             return true;
         }
@@ -407,33 +410,35 @@ public class GameScreen implements Screen, InputProcessor {
     }
 
     public void restartLevel() {
+        // Clear all bodies
         for (Body body : bodyMap.values()) {
             physicsWorld.destroyBody(body);
         }
         bodyMap.clear();
 
-        currentLevel = new LevelSingle(currentLevel.getNumber(), currentLevel.getRating(), currentLevel.isUnlocked());
-        setupPhysicsWorld();
+        // Dispose of old world
+        physicsWorld.dispose();
 
+        // Create new world with same gravity
+        physicsWorld = new World(new Vector2(0, GRAVITY), true);
+
+        // Reset level
+        currentLevel = new LevelSingle(currentLevel.getNumber(), currentLevel.getRating(), currentLevel.isUnlocked());
+
+        // Setup physics again
+        setupPhysicsWorld();
+        initializeCollisionListener();
+
+        // Reset game states
         gameStarted = false;
         birdLaunched = false;
         birdStopped = false;
         isDragging = false;
+        showingWinLossPopup = false;
 
         if (gamePaused) {
             togglePause();
         }
-    }
-
-    public void quitToMainMenu() {
-        if (gamePaused) {
-            togglePause();
-        }
-        game.setScreen(new LevelsScreen(game));
-    }
-
-    public boolean isPaused() {
-        return gamePaused;
     }
 
     private void drawSlingBand() {
@@ -463,36 +468,210 @@ public class GameScreen implements Screen, InputProcessor {
         }
     }
 
+    public void quitToMainMenu() {
+        showingWinLossPopup = false;
+        if (gamePaused) {
+            togglePause();
+        }
+        game.setScreen(new LevelsScreen(game));
+    }
+
+    public boolean isPaused() {
+        return gamePaused;
+    }
+
     private void drawTrajectoryPreview() {
         if (isDragging && currentDrag != null) {
             shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
-            shapeRenderer.setColor(0.8f, 0.8f, 0.8f, 0.5f);
+            shapeRenderer.setColor(0f, 0f, 0f, 1f);
 
-            Vector2 dragVector = slingAnchor.cpy().sub(currentDrag);
-            float distance = dragVector.len();
+            Vector2 dragVector = currentDrag.cpy().sub(slingAnchor);
+            float distance = Math.min(dragVector.len(), MAX_DRAG_DISTANCE);
+            dragVector.nor().scl(-distance);
+
             float launchPower = (distance / MAX_DRAG_DISTANCE) * LAUNCH_SPEED_MULTIPLIER;
-            Vector2 velocity = dragVector.nor().scl(launchPower);
+            Vector2 velocity = dragVector.scl(launchPower / PPM);
 
-            float prevX = currentDrag.x;
-            float prevY = currentDrag.y;
+            float x = currentDrag.x;
+            float y = currentDrag.y;
+            float dt = 1/60.0f;
+            float gravity =GRAVITY;
 
-            for (int i = 1; i <= TRAJECTORY_POINTS; i++) {
-                float t = i * TIME_STEP * 2;
-                float x = currentDrag.x + velocity.x * t;
-                float y = currentDrag.y + velocity.y * t + 0.5f * -9.81f * t * t;
+            for (int i = 0; i < 100; i++) {
+                float nextX = x + velocity.x * PPM * dt;
+                float nextY = y + velocity.y * PPM * dt;
 
-                if (i % 2 == 0) {
-                    shapeRenderer.line(prevX, prevY, x, y);
-                }
+                shapeRenderer.line(x, y, nextX, nextY);
 
-                prevX = x;
-                prevY = y;
+                x = nextX;
+                y = nextY;
+                velocity.y += gravity * dt;
 
-                if (y < slingY) break;
+                if (y < 0) break;
             }
-
             shapeRenderer.end();
         }
+    }
+
+    private void handleBirdStop() {
+        if (birdLaunched && !currentLevel.getBirds().isEmpty()) {
+            Bird currentBird = currentLevel.getBirds().get(0);
+            Body birdBody = bodyMap.get(currentBird);
+
+            if (birdBody != null) {
+                Vector2 pos = birdBody.getPosition();
+                Vector2 vel = birdBody.getLinearVelocity();
+                boolean offScreen = toPixels(pos.x) < 0 || toPixels(pos.x) > Gdx.graphics.getWidth() ||
+                    toPixels(pos.y) < 0 || toPixels(pos.y) > Gdx.graphics.getHeight();
+                boolean stopped = vel.len() < 0.1f;
+
+                if (offScreen || stopped) {
+                    physicsWorld.destroyBody(birdBody);
+                    bodyMap.remove(currentBird);
+                    currentLevel.getBirds().remove(0);
+                    resetForNextBird();
+
+                    // Check if all birds are gone AND no pigs left
+                    if (currentLevel.getBirds().isEmpty() && currentLevel.getPigs().isEmpty()) {
+                        int stars = calculateStars();
+                        currentLevel.setRating(stars);
+                        if (stars >= 2) {
+                            LevelsScreen.unlockNextLevel(currentLevel.getNumber());
+                        }
+                        showingWinLossPopup = true;
+                        gamePaused = true;
+                        pauseScreen.showWinLoss(true, stars);
+                    } else if (currentLevel.getBirds().isEmpty() && !currentLevel.getPigs().isEmpty()) {
+                        // Lost condition - no more birds but pigs remain
+                        showingWinLossPopup = true;
+                        gamePaused = true;
+                        pauseScreen.showWinLoss(false, 0);
+                    }
+                }
+            }
+        }
+    }
+
+    private void handleCollision(Body bodyA, Body bodyB) {
+        if (!gameStarted) return;
+
+        Object userDataA = bodyA.getUserData();
+        Object userDataB = bodyB.getUserData();
+
+        float relativeVelocity = bodyA.getLinearVelocity().sub(bodyB.getLinearVelocity()).len();
+        float impactForce = relativeVelocity * Math.max(bodyA.getMass(), bodyB.getMass());
+
+        handleBirdPigCollision(userDataA, userDataB, impactForce);
+        handleBirdBlockCollision(userDataA, userDataB, impactForce);
+        handleBlockPigCollision(userDataA, userDataB, impactForce);
+    }
+
+    private void handleBirdPigCollision(Object objectA, Object objectB, float impactForce) {
+        if ((objectA instanceof Bird && objectB instanceof Pig) ||
+            (objectB instanceof Bird && objectA instanceof Pig)) {
+            Bird bird = (Bird)(objectA instanceof Bird ? objectA : objectB);
+            Pig pig = (Pig)(objectA instanceof Pig ? objectA : objectB);
+
+            float damageMultiplier = impactForce / 15f;  // Reduced from previous value
+            int damage = (int)(bird.getDamage() * damageMultiplier);
+            pig.takeDamage(damage);
+
+            if (pig.getHp() <= 0) {
+                Body pigBody = bodyMap.get(pig);
+                if (pigBody != null) {
+                    bodiesToDestroy.add(pigBody);
+                    bodyMap.remove(pig);
+                    currentLevel.getPigs().remove(pig);
+                }
+            }
+        }
+    }
+
+    private void handleBlockPigCollision(Object objectA, Object objectB, float impactForce) {
+        if ((objectA instanceof Block && objectB instanceof Pig) ||
+            (objectB instanceof Block && objectA instanceof Pig)) {
+            Block block = (Block)(objectA instanceof Block ? objectA : objectB);
+            Pig pig = (Pig)(objectA instanceof Pig ? objectA : objectB);
+
+            // Remove the block.isDestroyed() check to allow damage from any block collision
+            if (impactForce > 1f) {  // Lowered threshold significantly
+                float damageMultiplier = impactForce / 10f;
+                int damage = (int)(200 * damageMultiplier);  // Base damage for block collisions
+                pig.takeDamage(damage);
+
+                if (pig.getHp() <= 0) {
+                    Body pigBody = bodyMap.get(pig);
+                    if (pigBody != null) {
+                        bodiesToDestroy.add(pigBody);
+                        bodyMap.remove(pig);
+                        currentLevel.getPigs().remove(pig);
+                    }
+                }
+            }
+        }
+    }
+
+    // Add new method to check for ground collision
+    private void checkPigGroundCollision(Pig pig, float velocityY) {
+        if (velocityY < -5f) {  // If pig hits ground with significant force
+            pig.takeDamage(100);  // Direct damage from ground impact
+
+            if (pig.getHp() <= 0) {
+                Body pigBody = bodyMap.get(pig);
+                if (pigBody != null) {
+                    bodiesToDestroy.add(pigBody);
+                    bodyMap.remove(pig);
+                    currentLevel.getPigs().remove(pig);
+                }
+            }
+        }
+    }
+
+    private void updateGameObjects() {
+        handleBirdStop();
+        Map<GameObject, Body> bodyMapCopy = new HashMap<>(bodyMap);
+
+        for (Map.Entry<GameObject, Body> entry : bodyMapCopy.entrySet()) {
+            GameObject obj = entry.getKey();
+            Body body = entry.getValue();
+
+            if (body.isActive()) {
+                Vector2 position = body.getPosition();
+
+                // Check for off-screen pigs
+                if (obj instanceof Pig) {
+                    boolean offScreen = toPixels(position.x) < -50 ||
+                        toPixels(position.x) > Gdx.graphics.getWidth() + 50 ||
+                        toPixels(position.y) < -50 ||
+                        toPixels(position.y) > Gdx.graphics.getHeight() + 50;
+
+                    if (offScreen) {
+                        physicsWorld.destroyBody(body);
+                        bodyMap.remove(obj);
+                        currentLevel.getPigs().remove(obj);
+                        checkLevelCompletion();
+                        continue;
+                    }
+                    obj.setX(toPixels(position.x) - PIG_SIZE/2);
+                    obj.setY(toPixels(position.y) - PIG_SIZE/2);
+                }
+                else if (obj instanceof Block) {
+                    obj.setX(toPixels(position.x) - Block.WIDTH/2);
+                    obj.setY(toPixels(position.y) - Block.HEIGHT/2);
+                } else if (obj instanceof Bird) {
+                    obj.setX(toPixels(position.x) - ((Bird) obj).getRadius());
+                    obj.setY(toPixels(position.y) - ((Bird) obj).getRadius());
+                }
+            }
+        }
+    }
+
+
+    private void destroyQueuedBodies() {
+        for (Body body : bodiesToDestroy) {
+            physicsWorld.destroyBody(body);
+        }
+        bodiesToDestroy.clear();
     }
 
     @Override
@@ -502,8 +681,10 @@ public class GameScreen implements Screen, InputProcessor {
         if (!gamePaused) {
             doPhysicsStep(delta);
             updateGameObjects();
+            destroyQueuedBodies();
         }
 
+        // Always render game state
         game.gameBatch.begin();
         drawBackground();
         drawSlingBack();
@@ -519,11 +700,11 @@ public class GameScreen implements Screen, InputProcessor {
         }
 
         debugRenderer.render(physicsWorld, game.gameBatch.getProjectionMatrix().cpy().scale(PPM, PPM, 1));
-        drawDebugDots();  // Add this line after debug rendering
 
         mainStage.act(delta);
         mainStage.draw();
 
+        // Draw pause screen or win/loss popup on top
         if (gamePaused) {
             pauseScreen.render(delta);
         }
@@ -532,6 +713,7 @@ public class GameScreen implements Screen, InputProcessor {
     public void togglePause() {
         gamePaused = !gamePaused;
         if (gamePaused) {
+            pauseScreen.togglePauseMenu();  // This will create and show the pause menu
             Gdx.input.setInputProcessor(pauseScreen.getStage());
         }
         else {

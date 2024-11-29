@@ -5,11 +5,11 @@ public abstract class Block implements GameObject, Destructible {
     public static final float HEIGHT = 50;
 
     protected float x, y;
-    protected int health;
-    protected int maxHealth;
+    protected float health;
+    protected float maxHealth;
     protected float destructionProgress;
 
-    public Block(float x, float y, int initialHealth) {
+    public Block(float x, float y, float initialHealth) {
         this.x = x;
         this.y = y;
         this.health = initialHealth;
@@ -51,15 +51,16 @@ public abstract class Block implements GameObject, Destructible {
         this.y = y;
     }
 
+
     public float getDestructionProgress() {
         return destructionProgress;
     }
 
-    public int getHealth() {
+    public float getHealth() {
         return health;
     }
 
-    public int getMaxHealth() {
+    public float getMaxHealth() {
         return maxHealth;
     }
 

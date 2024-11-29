@@ -2,7 +2,7 @@ package io.github.angrybirdsbox2d;
 
 public class GlassBlock extends Block {
     public GlassBlock(float x, float y) {
-        super(x, y, 50);
+        super(x, y, 6.25f);
     }
 
     @Override

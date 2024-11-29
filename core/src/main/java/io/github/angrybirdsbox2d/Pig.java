@@ -9,7 +9,7 @@ public class Pig implements GameObject {
     private PigType pigType;
     private Vector2 velocity;
     private boolean isFalling;
-    private static final float GRAVITY = -9.81f * 12;
+    private static final float GRAVITY = -9.81f/6;
     private static final float BOUNCE_DAMPING = 0.5f;
     private static final float MIN_VELOCITY = 50f;
 

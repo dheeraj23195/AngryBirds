@@ -25,16 +25,16 @@ public class Bird implements GameObject {
 
         switch(type) {
             case RED:
-                this.damage = 100;
+                this.damage = 800;    // Increased from 350
                 break;
             case YELLOW:
-                this.damage = 150;
+                this.damage = 600;    // Increased from 250
                 break;
             case BLACK:
-                this.damage = 200;
+                this.damage = 700;    // Increased from 300
                 break;
             default:
-                this.damage = 100;
+                this.damage = 700;
         }
     }
 

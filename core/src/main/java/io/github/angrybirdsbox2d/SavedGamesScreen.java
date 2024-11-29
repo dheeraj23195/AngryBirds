@@ -140,10 +140,12 @@ public class SavedGamesScreen implements Screen {
 
     private void handleSlotClick(int slot) {
         if (saveMode) {
+            new LevelsScreen(game).saveGameState(slot);
             showSaveSuccess();
             returnToGame();
         } else {
-            loadGame();
+            new LevelsScreen(game).loadGameState(slot);
+            game.setScreen(new LevelsScreen(game));
         }
     }
 

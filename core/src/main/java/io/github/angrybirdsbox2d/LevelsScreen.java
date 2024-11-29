@@ -2,6 +2,7 @@ package io.github.angrybirdsbox2d;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
+import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
@@ -14,6 +15,9 @@ import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.badlogic.gdx.graphics.Color;
 
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,14 +32,13 @@ public class LevelsScreen implements Screen {
 
     static {
         birdTypes.clear();
-        birdTypes.add(new Bird(100, BirdType.RED, 1));
-        birdTypes.add(new Bird(100, BirdType.YELLOW, 3));
-        birdTypes.add(new Bird(100, BirdType.BLACK, 5));
-
+        birdTypes.add(new Bird(1600, BirdType.RED, 1));
+        birdTypes.add(new Bird(1200, BirdType.YELLOW, 3));
+        birdTypes.add(new Bird(1400, BirdType.BLACK, 5));
         gameLevels.clear();
         for (int i = 1; i <= 6; i++) {
-            boolean canPlay = i <= 5;
-            int levelStars = i == 3 ? 0 : (i <= 2 ? 3 - (i - 1) : 0);
+            boolean canPlay = (i == 1);
+            int levelStars = 0;
             gameLevels.add(new LevelSingle(i, levelStars, canPlay));
         }
     }
@@ -57,6 +60,35 @@ public class LevelsScreen implements Screen {
 
         addNavButtons();
         createLevelGrid();
+    }
+    void saveGameState(int slot) {
+        try {
+            FileHandle file = Gdx.files.local("save_" + slot + ".dat");
+            ObjectOutputStream out = new ObjectOutputStream(file.write(false));
+            out.writeObject(gameLevels);
+            out.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    void loadGameState(int slot) {
+        try {
+            FileHandle file = Gdx.files.local("save_" + slot + ".dat");
+            if (file.exists()) {
+                ObjectInputStream in = new ObjectInputStream(file.read());
+                gameLevels = (List<LevelSingle>) in.readObject();
+                in.close();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void unlockNextLevel(int currentLevel) {
+        if (currentLevel < gameLevels.size()) {
+            gameLevels.get(currentLevel).setUnlocked(true);
+        }
     }
 
     private void addNavButtons() {
