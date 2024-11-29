@@ -15,10 +15,13 @@ public class Pig implements GameObject, Serializable {
     private static final float BOUNCE_DAMPING = 0.5f;
     private static final float MIN_VELOCITY = 50f;
     private static final long serialVersionUID = 6L;
+    private float rotation = 0f;
+    private final int maxHealth;
 
     public Pig(int hp, PigType pigType) {
         this.hp = hp;
         this.pigType = pigType;
+        this.maxHealth = hp;
         this.velocity = new Vector2(0, 0);
         this.isFalling = false;
     }
@@ -27,6 +30,20 @@ public class Pig implements GameObject, Serializable {
     public void takeDamage(int damage) {
         this.hp -= damage;
         if (this.hp < 0) this.hp = 0;
+    }
+
+    public int getMaxHealth() {
+        return maxHealth;
+    }
+
+    @Override
+    public float getRotation() {
+        return rotation;
+    }
+
+    @Override
+    public void setRotation(float rotation) {
+        this.rotation = rotation;
     }
 
     public float getX() {

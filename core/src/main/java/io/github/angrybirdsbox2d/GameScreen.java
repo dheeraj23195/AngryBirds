@@ -4,11 +4,11 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.InputProcessor;
 import com.badlogic.gdx.Screen;
-import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
 import com.badlogic.gdx.scenes.scene2d.Actor;
@@ -114,7 +114,6 @@ public class GameScreen implements Screen, InputProcessor {
     }
 
     private void setupPhysicsWorld() {
-        // Ground setup
         BodyDef groundDef = new BodyDef();
         groundDef.type = BodyDef.BodyType.StaticBody;
         groundDef.position.set(0, toBox2D(GROUND_HEIGHT));
@@ -230,9 +229,9 @@ public class GameScreen implements Screen, InputProcessor {
 
         FixtureDef fixtureDef = new FixtureDef();
         fixtureDef.shape = shape;
-        fixtureDef.density = 3.0f;         // Increased from 1.0f
-        fixtureDef.friction = 0.5f;        // Reduced from 0.9f
-        fixtureDef.restitution = 0.3f;     // Increased from 0.02f
+        fixtureDef.density = 3.0f;
+        fixtureDef.friction = 0.5f;
+        fixtureDef.restitution = 0.3f;
 
         body.createFixture(fixtureDef);
         body.setUserData(bird);
@@ -293,8 +292,6 @@ public class GameScreen implements Screen, InputProcessor {
     private void checkLevelCompletion() {
         if (!showingWinLossPopup) {
             boolean noMorePigs = currentLevel.getPigs().isEmpty();
-            boolean noMoreBirds = currentLevel.getBirds().isEmpty();
-
             if (noMorePigs) {
                 int stars = calculateStars();
                 currentLevel.setRating(stars);
@@ -305,7 +302,8 @@ public class GameScreen implements Screen, InputProcessor {
                 showingWinLossPopup = true;
                 gamePaused = true;
                 pauseScreen.showWinLoss(true, stars);
-            } else if (noMoreBirds && !birdLaunched) {
+            } else if (!birdLaunched && currentLevel.getBirds().isEmpty()) {
+                // Only show loss if we have no more birds to launch AND pigs still exist
                 showingWinLossPopup = true;
                 gamePaused = true;
                 pauseScreen.showWinLoss(false, 0);
@@ -530,8 +528,7 @@ public class GameScreen implements Screen, InputProcessor {
                     bodyMap.remove(currentBird);
                     currentLevel.getBirds().remove(0);
                     resetForNextBird();
-
-                    // Check if all birds are gone AND no pigs left
+                    checkLevelCompletion();
                     if (currentLevel.getBirds().isEmpty() && currentLevel.getPigs().isEmpty()) {
                         int stars = calculateStars();
                         currentLevel.setRating(stars);
@@ -552,6 +549,8 @@ public class GameScreen implements Screen, InputProcessor {
         }
     }
 
+    // In GameScreen.java, update/add these methods:
+
     private void handleCollision(Body bodyA, Body bodyB) {
         if (!gameStarted) return;
 
@@ -561,11 +560,31 @@ public class GameScreen implements Screen, InputProcessor {
         float relativeVelocity = bodyA.getLinearVelocity().sub(bodyB.getLinearVelocity()).len();
         float impactForce = relativeVelocity * Math.max(bodyA.getMass(), bodyB.getMass());
 
+        // Check for ground collisions first
+        if (handleGroundCollision(userDataA, bodyA, impactForce) ||
+            handleGroundCollision(userDataB, bodyB, impactForce)) {
+            return;
+        }
+
         handleBirdPigCollision(userDataA, userDataB, impactForce);
         handleBirdBlockCollision(userDataA, userDataB, impactForce);
         handleBlockPigCollision(userDataA, userDataB, impactForce);
     }
 
+
+    private boolean handleGroundCollision(Object userData, Body body, float impactForce) {
+        if (userData instanceof Pig && body.getPosition().y < toBox2D(GROUND_HEIGHT + 10)) {
+            Pig pig = (Pig) userData;
+            // Ground impact damage increases with velocity
+            float damageMultiplier = impactForce / 10f;
+            int groundDamage = (int)(300 * damageMultiplier); // Base ground damage
+            pig.takeDamage(groundDamage);
+
+            checkPigDestruction(pig);
+            return true;
+        }
+        return false;
+    }
     private void handleBirdPigCollision(Object objectA, Object objectB, float impactForce) {
         if ((objectA instanceof Bird && objectB instanceof Pig) ||
             (objectB instanceof Bird && objectA instanceof Pig)) {
@@ -590,25 +609,62 @@ public class GameScreen implements Screen, InputProcessor {
     private void handleBlockPigCollision(Object objectA, Object objectB, float impactForce) {
         if ((objectA instanceof Block && objectB instanceof Pig) ||
             (objectB instanceof Block && objectA instanceof Pig)) {
+
             Block block = (Block)(objectA instanceof Block ? objectA : objectB);
             Pig pig = (Pig)(objectA instanceof Pig ? objectA : objectB);
 
-            // Remove the block.isDestroyed() check to allow damage from any block collision
-            if (impactForce > 1f) {  // Lowered threshold significantly
-                float damageMultiplier = impactForce / 10f;
-                int damage = (int)(200 * damageMultiplier);  // Base damage for block collisions
-                pig.takeDamage(damage);
+            // Block collision damage based on impact force and block material
+            float damageMultiplier = impactForce / 15f;
+            int baseDamage = 200; // Base damage for block collisions
 
-                if (pig.getHp() <= 0) {
-                    Body pigBody = bodyMap.get(pig);
-                    if (pigBody != null) {
-                        bodiesToDestroy.add(pigBody);
-                        bodyMap.remove(pig);
-                        currentLevel.getPigs().remove(pig);
-                    }
-                }
+            // Adjust damage based on block type
+            if (block instanceof SteelBlock) {
+                baseDamage *= 1.5f; // Steel blocks deal more damage
+            } else if (block instanceof GlassBlock) {
+                baseDamage *= 0.8f; // Glass blocks deal less damage
+            }
+
+            int damage = (int)(baseDamage * damageMultiplier);
+            pig.takeDamage(damage);
+
+            checkPigDestruction(pig);
+        }
+    }
+
+    private void checkPigDestruction(Pig pig) {
+        if (pig.getHp() <= 0) {
+            Body pigBody = bodyMap.get(pig);
+            if (pigBody != null) {
+                bodiesToDestroy.add(pigBody);
+                bodyMap.remove(pig);
+                currentLevel.getPigs().remove(pig);
+                checkLevelCompletion();
             }
         }
+    }
+
+    // Update drawPigs method to include fading based on health
+    private void drawPigs() {
+        for (Pig pig : currentLevel.getPigs()) {
+            Texture pigImg = pig.getTexture();
+
+            // Calculate alpha based on health percentage
+            float healthPercentage = (float)pig.getHp() / pig.getMaxHealth();
+            float alpha = Math.max(0.3f, healthPercentage); // Minimum alpha of 0.3
+
+            game.gameBatch.setColor(1, 1, 1, alpha);
+            game.gameBatch.draw(pigImg,
+                pig.getX(), pig.getY(),            // Position
+                PIG_SIZE/2, PIG_SIZE/2,            // Origin
+                PIG_SIZE, PIG_SIZE,                // Size
+                1, 1,                              // Scale
+                pig.getRotation(),                 // Rotation angle
+                0, 0,                              // Source rectangle position
+                pigImg.getWidth(),                 // Source rectangle width
+                pigImg.getHeight(),                // Source rectangle height
+                false, false);                     // Flip horizontally/vertically
+        }
+        game.gameBatch.setColor(1, 1, 1, 1); // Reset color
     }
 
     // Add new method to check for ground collision
@@ -637,8 +693,11 @@ public class GameScreen implements Screen, InputProcessor {
 
             if (body.isActive()) {
                 Vector2 position = body.getPosition();
+                float angle = body.getAngle() * MathUtils.radiansToDegrees; // Convert radians to degrees
 
-                // Check for off-screen pigs
+                // Update rotation for all game objects
+                obj.setRotation(angle);
+
                 if (obj instanceof Pig) {
                     boolean offScreen = toPixels(position.x) < -50 ||
                         toPixels(position.x) > Gdx.graphics.getWidth() + 50 ||
@@ -789,7 +848,17 @@ public class GameScreen implements Screen, InputProcessor {
     private void drawBird(Bird bird, float x, float y, float size) {
         Texture birdImg = bird.getTexture();
         float ratio = (float) birdImg.getWidth() / birdImg.getHeight();
-        game.gameBatch.draw(birdImg, x, y, size, size / ratio);
+
+        game.gameBatch.draw(birdImg,
+            x, y,
+            size/2, size/(2*ratio),
+            size, size/ratio,
+            1, 1,
+            bird.getRotation(),
+            0, 0,
+            birdImg.getWidth(),
+            birdImg.getHeight(),
+            false, false);
     }
 
     private void drawBlocks() {
@@ -797,17 +866,21 @@ public class GameScreen implements Screen, InputProcessor {
             Texture blockImg = AssetManager.getInstance().getTexture(block.getMaterial() + "_block.png");
             float alpha = 1f - (block.getDestructionProgress() * 0.5f);
             game.gameBatch.setColor(1, 1, 1, alpha);
-            game.gameBatch.draw(blockImg, block.getX(), block.getY(), Block.WIDTH, Block.HEIGHT);
+
+            game.gameBatch.draw(blockImg,
+                block.getX(), block.getY(),
+                Block.WIDTH/2, Block.HEIGHT/2,
+                Block.WIDTH, Block.HEIGHT,
+                1, 1,
+                block.getRotation(),
+                0, 0,
+                blockImg.getWidth(),
+                blockImg.getHeight(),
+                false, false);
         }
         game.gameBatch.setColor(1, 1, 1, 1);
     }
 
-    private void drawPigs() {
-        for (Pig pig : currentLevel.getPigs()) {
-            Texture pigImg = pig.getTexture();
-            game.gameBatch.draw(pigImg, pig.getX(), pig.getY(), PIG_SIZE, PIG_SIZE);
-        }
-    }
 
     private void clearBackground() {
         Gdx.gl.glClearColor(0.5f, 0.5f, 0.5f, 1);

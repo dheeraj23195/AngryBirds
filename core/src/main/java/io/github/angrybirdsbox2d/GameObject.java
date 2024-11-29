@@ -6,4 +6,6 @@ public interface GameObject {
     void setX(float x);
     void setY(float y);
     void takeDamage(int damage);
+    float getRotation(); // Add this
+    void setRotation(float rotation);
 }

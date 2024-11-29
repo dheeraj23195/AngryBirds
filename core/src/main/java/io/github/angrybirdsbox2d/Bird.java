@@ -16,6 +16,7 @@ public class Bird implements GameObject, Serializable {
     private final float radius;
     private final int damage;
     private static final long serialVersionUID = 5L;
+    private float rotation = 0f;
 
 
     public Bird(int health, BirdType type, int levelToUnlock) {
@@ -117,6 +118,15 @@ public class Bird implements GameObject, Serializable {
     public void setY(float y) {
         this.y = y;
         position.y = y;
+    }
+    @Override
+    public float getRotation() {
+        return rotation;
+    }
+
+    @Override
+    public void setRotation(float rotation) {
+        this.rotation = rotation;
     }
 
     public void setUnlockLevel(int level) {

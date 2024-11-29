@@ -154,7 +154,20 @@ public class PauseMenuScreen {
             nextBtn.addListener(new ClickListener() {
                 @Override
                 public void clicked(InputEvent event, float x, float y) {
-                    gameScreen.quitToMainMenu();
+                    // Get current level and create next level
+                    int currentLevelNum = gameScreen.getCurrentLevel().getNumber();
+                    int nextLevelNum = currentLevelNum + 1;
+
+                    // Check if next level exists in the list
+                    if (nextLevelNum <= LevelsScreen.gameLevels.size()) {
+                        LevelSingle nextLevel = LevelsScreen.gameLevels.get(nextLevelNum - 1);
+                        if (nextLevel != null) {
+                            game.setScreen(new GameScreen(game, nextLevel));
+                        }
+                    } else {
+                        // If no next level, return to level selection
+                        game.setScreen(new LevelsScreen(game));
+                    }
                 }
             });
             buttonsTable.add(nextBtn).size(BTN_SIZE).pad(20);

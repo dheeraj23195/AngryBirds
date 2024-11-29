@@ -11,6 +11,7 @@ public abstract class Block implements GameObject, Destructible, Serializable {
     protected float health;
     protected float maxHealth;
     protected float destructionProgress;
+    protected float rotation = 0f;
 
     public Block(float x, float y, float initialHealth) {
         this.x = x;
@@ -18,6 +19,7 @@ public abstract class Block implements GameObject, Destructible, Serializable {
         this.health = initialHealth;
         this.maxHealth = initialHealth;
         this.destructionProgress = 0f;
+
     }
 
     @Override
@@ -30,6 +32,16 @@ public abstract class Block implements GameObject, Destructible, Serializable {
     @Override
     public boolean isDestroyed() {
         return health <= 0;
+    }
+
+    @Override
+    public float getRotation() {
+        return rotation;
+    }
+
+    @Override
+    public void setRotation(float rotation) {
+        this.rotation = rotation;
     }
 
     public float getX() {
