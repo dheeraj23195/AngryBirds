@@ -14,7 +14,7 @@ A recreation of the classic Angry Birds game using Java and libGDX framework. Pl
 - Pause menu and settings controls
 
 ## Demo Video
-- Open Demo Video.zip in the Folder
+- Drive Link - https://drive.google.com/file/d/1QaCN0aZrL-QBUpP-kmUhip60ZM-mnKbl/view?usp=sharing 
 
 ## UML Diagrams , Use case Diagram
 - Present in ZIP File
