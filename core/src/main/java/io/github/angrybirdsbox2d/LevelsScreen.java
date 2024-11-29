@@ -2,7 +2,7 @@ package io.github.angrybirdsbox2d;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
-import com.badlogic.gdx.files.FileHandle;
+import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
@@ -13,11 +13,8 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
-import com.badlogic.gdx.graphics.Color;
 
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,10 +28,15 @@ public class LevelsScreen implements Screen {
     private static final float NAV_BTN_SIZE = 80f;
 
     static {
+        initializeGameData();
+    }
+
+    private static void initializeGameData() {
         birdTypes.clear();
         birdTypes.add(new Bird(1600, BirdType.RED, 1));
         birdTypes.add(new Bird(1200, BirdType.YELLOW, 3));
         birdTypes.add(new Bird(1400, BirdType.BLACK, 5));
+
         gameLevels.clear();
         for (int i = 1; i <= 6; i++) {
             boolean canPlay = (i == 1);
@@ -42,6 +44,23 @@ public class LevelsScreen implements Screen {
             gameLevels.add(new LevelSingle(i, levelStars, canPlay));
         }
     }
+
+    public static void unlockNextLevel(int currentLevel) {
+        if (currentLevel < gameLevels.size()) {
+            gameLevels.get(currentLevel).setUnlocked(true);
+        }
+    }
+
+    public static List<Bird> getAvailableBirdsForLevel(int levelNumber) {
+        List<Bird> levelBirds = new ArrayList<>();
+        for (Bird bird : birdTypes) {
+            if (bird.getUnlockLevel() <= levelNumber) {
+                levelBirds.add(bird);
+            }
+        }
+        return levelBirds;
+    }
+
 
     public LevelsScreen(AngryBirdsGame game) {
         this.game = game;
@@ -61,35 +80,7 @@ public class LevelsScreen implements Screen {
         addNavButtons();
         createLevelGrid();
     }
-    void saveGameState(int slot) {
-        try {
-            FileHandle file = Gdx.files.local("save_" + slot + ".dat");
-            ObjectOutputStream out = new ObjectOutputStream(file.write(false));
-            out.writeObject(gameLevels);
-            out.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
 
-    void loadGameState(int slot) {
-        try {
-            FileHandle file = Gdx.files.local("save_" + slot + ".dat");
-            if (file.exists()) {
-                ObjectInputStream in = new ObjectInputStream(file.read());
-                gameLevels = (List<LevelSingle>) in.readObject();
-                in.close();
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    public static void unlockNextLevel(int currentLevel) {
-        if (currentLevel < gameLevels.size()) {
-            gameLevels.get(currentLevel).setUnlocked(true);
-        }
-    }
 
     private void addNavButtons() {
         ImageButton backBtn = new ImageButton(new TextureRegionDrawable(
@@ -220,15 +211,5 @@ public class LevelsScreen implements Screen {
         if (uiSkin != null) {
             uiSkin.dispose();
         }
-    }
-
-    public static List<Bird> getAvailableBirdsForLevel(int levelNumber) {
-        List<Bird> levelBirds = new ArrayList<>();
-        for (Bird bird : birdTypes) {
-            if (bird.getUnlockLevel() <= levelNumber) {
-                levelBirds.add(bird);
-            }
-        }
-        return levelBirds;
     }
 }

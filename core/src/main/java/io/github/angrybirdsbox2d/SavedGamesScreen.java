@@ -2,6 +2,7 @@ package io.github.angrybirdsbox2d;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
+import com.badlogic.gdx.files.FileHandle;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Texture;
@@ -15,6 +16,11 @@ import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+
 public class SavedGamesScreen implements Screen {
     private final AngryBirdsGame game;
     private Stage uiStage;
@@ -24,6 +30,8 @@ public class SavedGamesScreen implements Screen {
     private static final float SLOT_WIDTH = 250f;
     private static final float SLOT_HEIGHT = 150f;
     private static final float NAV_BTN_SIZE = 80f;
+    private static final String SAVE_PREFIX = "savegame_";
+    private Label.LabelStyle labelStyle;
 
     public SavedGamesScreen(AngryBirdsGame game, boolean saveMode, Screen lastScreen) {
         this.game = game;
@@ -36,8 +44,21 @@ public class SavedGamesScreen implements Screen {
         uiStage = new Stage(new ScreenViewport());
         Gdx.input.setInputProcessor(uiStage);
         uiSkin = new Skin(Gdx.files.internal("uiskin.json"));
+        labelStyle = new Label.LabelStyle(uiSkin.get(Label.LabelStyle.class));
+        labelStyle.font = uiSkin.getFont("default-font");
+        labelStyle.fontColor = Color.WHITE;
+
         createBackground();
-        setupUI();
+
+        Table mainTable = new Table();
+        mainTable.setFillParent(true);
+        mainTable.top().padTop(100);
+
+        addTitle(mainTable);
+        addSaveSlots(mainTable);
+        addNavigationButton();
+
+        uiStage.addActor(mainTable);
     }
 
     private void createBackground() {
@@ -47,15 +68,13 @@ public class SavedGamesScreen implements Screen {
         uiStage.addActor(bg);
     }
 
-    private void setupUI() {
-        Table mainTable = new Table();
-        mainTable.setFillParent(true);
+    private void addTitle(Table mainTable) {
+        Label titleLabel = new Label(saveMode ? "Save Game" : "Load Game", labelStyle);
+        titleLabel.setFontScale(2f);
 
-        addNavigationButton();
-        addTitle(mainTable);
-        addSaveSlots(mainTable);
-
-        uiStage.addActor(mainTable);
+        Table headerTable = new Table();
+        headerTable.add(titleLabel).expandX();
+        mainTable.add(headerTable).padBottom(50).row();
     }
 
     private void addNavigationButton() {
@@ -72,80 +91,100 @@ public class SavedGamesScreen implements Screen {
         uiStage.addActor(backBtn);
     }
 
-    private void handleBackButton() {
-        if (lastScreen instanceof MainMenuScreen) {
-            game.setScreen(new MainMenuScreen(game));
-        } else if (lastScreen instanceof GameScreen) {
-            GameScreen gameScreen = (GameScreen) lastScreen;
-            game.setScreen(gameScreen, false);
-            if (!gameScreen.isPaused()) {
-                gameScreen.togglePause();
-            }
-            Gdx.input.setInputProcessor(gameScreen.getPauseMenu().getStage());
-        }
-    }
-
-    private void addTitle(Table mainTable) {
-        Label.LabelStyle titleStyle = new Label.LabelStyle(uiSkin.get(Label.LabelStyle.class));
-        titleStyle.font = uiSkin.getFont("default-font");
-        titleStyle.fontColor = Color.WHITE;
-        Label titleLabel = new Label(saveMode ? "Save Game" : "Load Game", titleStyle);
-        titleLabel.setFontScale(2f);
-
-        Table headerTable = new Table();
-        headerTable.add(titleLabel).expandX();
-        mainTable.add(headerTable).padBottom(50).row();
-    }
-
     private void addSaveSlots(Table mainTable) {
         Table slotsTable = new Table();
         for (int i = 1; i <= 3; i++) {
-            Stack slotStack = createSlot(i);
+            Table slotStack = createSlot(i);
             slotsTable.add(slotStack).size(SLOT_WIDTH, SLOT_HEIGHT).pad(20);
         }
         mainTable.add(slotsTable);
     }
 
-    private Stack createSlot(int slotNumber) {
-        Stack slotStack = new Stack();
-
-        Texture slotImg = AssetManager.getInstance().getTexture("button_bg.png");
-        Image slotBg = new Image(new TextureRegionDrawable(new TextureRegion(slotImg)));
-        slotStack.add(slotBg);
-
-        Table content = new Table();
-        Label.LabelStyle labelStyle = new Label.LabelStyle(uiSkin.get(Label.LabelStyle.class));
-        labelStyle.font = uiSkin.getFont("default-font");
-        labelStyle.fontColor = Color.WHITE;
+    private Table createSlot(final int slotNumber) {
+        Table slotTable = new Table();
+        slotTable.setBackground(new TextureRegionDrawable(new TextureRegion(
+            AssetManager.getInstance().getTexture("button_bg.png"))));
 
         Label slotLabel = new Label("Slot " + slotNumber, labelStyle);
-        slotLabel.setFontScale(1.5f);
-        content.add(slotLabel).pad(10).row();
+        slotTable.add(slotLabel).pad(10).row();
 
-        Label infoLabel = new Label("Empty Slot", labelStyle);
-        content.add(infoLabel).pad(10);
+        Label infoLabel = new Label(getSlotInfo(slotNumber), labelStyle);
+        slotTable.add(infoLabel).pad(10);
 
-        slotStack.add(content);
-
-        final int slot = slotNumber;
-        slotStack.addListener(new ClickListener() {
+        slotTable.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
-                handleSlotClick(slot);
+                handleSlotClick(slotNumber);
             }
         });
 
-        return slotStack;
+        return slotTable;
+    }
+
+    private String getSlotInfo(int slot) {
+        try {
+            FileHandle file = Gdx.files.local(SAVE_PREFIX + slot + ".sav");
+            if (file.exists()) {
+                ObjectInputStream in = new ObjectInputStream(file.read());
+                GameSaveData saveData = (GameSaveData)in.readObject();
+                in.close();
+
+                SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy HH:mm");
+                return "Saved: " + sdf.format(saveData.getSaveDate()) +
+                    "\nLevel: " + saveData.getCurrentLevelNumber();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return "Empty Slot";
     }
 
     private void handleSlotClick(int slot) {
         if (saveMode) {
-            new LevelsScreen(game).saveGameState(slot);
+            saveGame(slot);
+        } else {
+            loadGame(slot);
+        }
+    }
+
+    private void saveGame(int slot) {
+        try {
+            int currentLevelNumber = 1;
+            if (lastScreen instanceof GameScreen) {
+                GameScreen gameScreen = (GameScreen)lastScreen;
+                currentLevelNumber = gameScreen.getCurrentLevel().getNumber();
+            }
+
+            GameSaveData saveData = new GameSaveData(
+                LevelsScreen.gameLevels,
+                currentLevelNumber
+            );
+
+            FileHandle file = Gdx.files.local(SAVE_PREFIX + slot + ".sav");
+            ObjectOutputStream out = new ObjectOutputStream(file.write(false));
+            out.writeObject(saveData);
+            out.close();
+
             showSaveSuccess();
             returnToGame();
-        } else {
-            new LevelsScreen(game).loadGameState(slot);
-            game.setScreen(new LevelsScreen(game));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void loadGame(int slot) {
+        try {
+            FileHandle file = Gdx.files.local(SAVE_PREFIX + slot + ".sav");
+            if (file.exists()) {
+                ObjectInputStream in = new ObjectInputStream(file.read());
+                GameSaveData saveData = (GameSaveData)in.readObject();
+                in.close();
+
+                LevelsScreen.gameLevels = new ArrayList<>(saveData.getLevelsList());
+                game.setScreen(new LevelsScreen(game));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
@@ -154,11 +193,7 @@ public class SavedGamesScreen implements Screen {
         popup.setFillParent(true);
         popup.bottom();
 
-        Label.LabelStyle style = new Label.LabelStyle(uiSkin.get(Label.LabelStyle.class));
-        style.font = uiSkin.getFont("default-font");
-        style.fontColor = Color.WHITE;
-
-        Label msg = new Label("Game Saved Successfully!", style);
+        Label msg = new Label("Game Saved Successfully!", labelStyle);
         msg.setFontScale(1.5f);
 
         Table bgTable = new Table();
@@ -189,9 +224,17 @@ public class SavedGamesScreen implements Screen {
         }, 3);
     }
 
-    private void loadGame() {
-        LevelSingle level = LevelsScreen.gameLevels.get(0);
-        game.setScreen(new GameScreen(game, level));
+    private void handleBackButton() {
+        if (lastScreen instanceof GameScreen) {
+            GameScreen gameScreen = (GameScreen) lastScreen;
+            game.setScreen(gameScreen, false);
+            if (!gameScreen.isPaused()) {
+                gameScreen.togglePause();
+            }
+            Gdx.input.setInputProcessor(gameScreen.getPauseMenu().getStage());
+        } else {
+            game.setScreen(new MainMenuScreen(game));
+        }
     }
 
     @Override
@@ -203,6 +246,7 @@ public class SavedGamesScreen implements Screen {
     public void render(float delta) {
         Gdx.gl.glClearColor(0.2f, 0.2f, 0.2f, 1);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
+
         uiStage.act(Math.min(Gdx.graphics.getDeltaTime(), 1 / 30f));
         uiStage.draw();
     }

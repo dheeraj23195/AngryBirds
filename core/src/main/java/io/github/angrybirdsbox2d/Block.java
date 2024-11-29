@@ -1,8 +1,11 @@
 package io.github.angrybirdsbox2d;
 
-public abstract class Block implements GameObject, Destructible {
+import java.io.Serializable;
+
+public abstract class Block implements GameObject, Destructible, Serializable {
     public static final float WIDTH = 50;
     public static final float HEIGHT = 50;
+    private static final long serialVersionUID = 1L;
 
     protected float x, y;
     protected float health;
@@ -21,7 +24,7 @@ public abstract class Block implements GameObject, Destructible {
     public void takeDamage(int damage) {
         health -= damage;
         if (health < 0) health = 0;
-        destructionProgress = 1f - ((float)health / maxHealth);
+        destructionProgress = 1f - (health / maxHealth);
     }
 
     @Override

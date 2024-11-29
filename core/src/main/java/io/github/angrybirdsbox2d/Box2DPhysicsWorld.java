@@ -4,7 +4,7 @@ import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.*;
 
 public class Box2DPhysicsWorld {
-    private World physicsWorld;
+    private final World physicsWorld;
     private static final float PPM = 10f;
     private static final float TIME_STEP = 1/60f;
     private static final int VELOCITY_ITERATIONS = 6;

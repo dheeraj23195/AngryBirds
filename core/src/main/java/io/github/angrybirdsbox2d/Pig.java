@@ -3,7 +3,9 @@ package io.github.angrybirdsbox2d;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.math.Vector2;
 
-public class Pig implements GameObject {
+import java.io.Serializable;
+
+public class Pig implements GameObject, Serializable {
     private float x, y;
     private int hp;
     private PigType pigType;
@@ -12,6 +14,7 @@ public class Pig implements GameObject {
     private static final float GRAVITY = -9.81f/6;
     private static final float BOUNCE_DAMPING = 0.5f;
     private static final float MIN_VELOCITY = 50f;
+    private static final long serialVersionUID = 6L;
 
     public Pig(int hp, PigType pigType) {
         this.hp = hp;

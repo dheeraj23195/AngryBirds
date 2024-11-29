@@ -1,6 +1,9 @@
 package io.github.angrybirdsbox2d;
 
-public class SteelBlock extends Block {
+import java.io.Serializable;
+
+public class SteelBlock extends Block implements Serializable {
+    private static final long serialVersionUID = 2L;
     public SteelBlock(float x, float y) {
         super(x, y, 20);
     }

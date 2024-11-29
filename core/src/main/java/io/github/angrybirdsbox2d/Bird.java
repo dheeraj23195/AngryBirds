@@ -3,7 +3,9 @@ package io.github.angrybirdsbox2d;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.math.Vector2;
 
-public class Bird implements GameObject {
+import java.io.Serializable;
+
+public class Bird implements GameObject, Serializable {
     private float x, y;
     private int health;
     private BirdType type;
@@ -11,8 +13,10 @@ public class Bird implements GameObject {
     private Vector2 position;
     private Vector2 dragVector;
     private boolean isDragged;
-    private float radius;
-    private int damage;
+    private final float radius;
+    private final int damage;
+    private static final long serialVersionUID = 5L;
+
 
     public Bird(int health, BirdType type, int levelToUnlock) {
         this.health = health;

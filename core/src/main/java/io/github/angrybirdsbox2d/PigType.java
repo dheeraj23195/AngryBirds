@@ -1,5 +1,7 @@
 package io.github.angrybirdsbox2d;
 
-public enum PigType {
+import java.io.Serializable;
+
+public enum PigType implements Serializable {
     SMALL, MEDIUM, LARGE
 }

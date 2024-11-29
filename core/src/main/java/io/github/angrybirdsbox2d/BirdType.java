@@ -1,5 +1,7 @@
 package io.github.angrybirdsbox2d;
 
-public enum BirdType {
+import java.io.Serializable;
+
+public enum BirdType implements Serializable {
     RED, YELLOW, BLACK
 }

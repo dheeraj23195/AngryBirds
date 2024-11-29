@@ -44,7 +44,7 @@ public class GameScreen implements Screen, InputProcessor {
 
     private World physicsWorld;
     private Box2DDebugRenderer debugRenderer;
-    private Map<GameObject, Body> bodyMap;
+    private final Map<GameObject, Body> bodyMap;
     private float accumulator = 0;
     private Body tempBirdBody;
 
@@ -56,9 +56,9 @@ public class GameScreen implements Screen, InputProcessor {
     private boolean birdStopped;
     private boolean gameStarted;
     private boolean gamePaused;
-    private Set<Body> bodiesToDestroy = new HashSet<>();
-    private boolean levelCompleted = false;
-    private boolean levelWon = false;
+    private final Set<Body> bodiesToDestroy = new HashSet<>();
+    private final boolean levelCompleted = false;
+    private final boolean levelWon = false;
     private boolean showingWinLossPopup = false;
 
 
@@ -666,6 +666,9 @@ public class GameScreen implements Screen, InputProcessor {
         }
     }
 
+    public LevelSingle getCurrentLevel() {
+        return currentLevel;
+    }
 
     private void destroyQueuedBodies() {
         for (Body body : bodiesToDestroy) {

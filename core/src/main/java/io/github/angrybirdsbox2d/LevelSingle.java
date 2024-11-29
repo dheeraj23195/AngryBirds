@@ -1,18 +1,34 @@
 package io.github.angrybirdsbox2d;
 
 import com.badlogic.gdx.Gdx;
+
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class LevelSingle {
+public class LevelSingle implements Serializable {
+    private static final long serialVersionUID = 101L;
     private final int levelNum;
     private int stars;
     private boolean unlocked;
-    private final List<Block> blocksList;
-    private final List<Pig> pigsList;
-    private final List<Bird> birdsList;
-    private static final long serialVersionUID = 1L;
+    private ArrayList<SerializableGameObject> serializableObjects;
+    private transient List<Block> blocksList;
+    private transient List<Pig> pigsList;
+    private transient List<Bird> birdsList;
 
+    private static class SerializableGameObject implements Serializable {
+        private static final long serialVersionUID = 102L;
+        String type;
+        float x;
+        float y;
+        int hp;
+        PigType pigType;
+        BirdType birdType;
+        int unlockLevel;
+    }
 
     public LevelSingle(int levelNum, int stars, boolean unlocked) {
         this.levelNum = levelNum;
@@ -22,6 +38,83 @@ public class LevelSingle {
         this.pigsList = new ArrayList<>();
         this.birdsList = new ArrayList<>();
         buildLevel();
+    }
+
+    private void writeObject(ObjectOutputStream out) throws IOException {
+        serializableObjects = new ArrayList<>();
+
+        // Save blocks
+        for (Block block : blocksList) {
+            SerializableGameObject obj = new SerializableGameObject();
+            if (block instanceof WoodBlock) obj.type = "WOOD_BLOCK";
+            else if (block instanceof GlassBlock) obj.type = "GLASS_BLOCK";
+            else if (block instanceof SteelBlock) obj.type = "STEEL_BLOCK";
+            obj.x = block.getX();
+            obj.y = block.getY();
+            serializableObjects.add(obj);
+        }
+
+        // Save pigs
+        for (Pig pig : pigsList) {
+            SerializableGameObject obj = new SerializableGameObject();
+            obj.type = "PIG";
+            obj.x = pig.getX();
+            obj.y = pig.getY();
+            obj.hp = pig.getHp();
+            obj.pigType = pig.getPigType();
+            serializableObjects.add(obj);
+        }
+
+        // Save birds
+        for (Bird bird : birdsList) {
+            SerializableGameObject obj = new SerializableGameObject();
+            obj.type = "BIRD";
+            obj.hp = bird.getHp();
+            obj.birdType = bird.getBirdType();
+            obj.unlockLevel = bird.getUnlockLevel();
+            serializableObjects.add(obj);
+        }
+
+        out.defaultWriteObject();
+    }
+
+    private void readObject(ObjectInputStream in) throws IOException, ClassNotFoundException {
+        in.defaultReadObject();
+
+        blocksList = new ArrayList<>();
+        pigsList = new ArrayList<>();
+        birdsList = new ArrayList<>();
+
+        if (serializableObjects != null) {
+            for (SerializableGameObject obj : serializableObjects) {
+                switch (obj.type) {
+                    case "WOOD_BLOCK":
+                        Block woodBlock = new WoodBlock(obj.x, obj.y);
+                        blocksList.add(woodBlock);
+                        break;
+                    case "GLASS_BLOCK":
+                        Block glassBlock = new GlassBlock(obj.x, obj.y);
+                        blocksList.add(glassBlock);
+                        break;
+                    case "STEEL_BLOCK":
+                        Block steelBlock = new SteelBlock(obj.x, obj.y);
+                        blocksList.add(steelBlock);
+                        break;
+                    case "PIG":
+                        Pig pig = new Pig(obj.hp, obj.pigType);
+                        pig.setX(obj.x);
+                        pig.setY(obj.y);
+                        pigsList.add(pig);
+                        break;
+                    case "BIRD":
+                        Bird bird = new Bird(obj.hp, obj.birdType, obj.unlockLevel);
+                        birdsList.add(bird);
+                        break;
+                }
+            }
+        } else {
+            buildLevel(); // Fallback if no saved data
+        }
     }
 
     public int getNumber() {
