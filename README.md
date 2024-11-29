@@ -13,6 +13,13 @@ A recreation of the classic Angry Birds game using Java and libGDX framework. Pl
 - Score system based on birds used (1-3 stars)
 - Pause menu and settings controls
 
+## Demo Video
+- Open Demo Video.zip in the Folder
+
+## UML Diagrams , Use case Diagram
+- Present in ZIP File
+
+
 ## How to Run
 1. Install JDK 17 or higher
 2. Clone the repository
