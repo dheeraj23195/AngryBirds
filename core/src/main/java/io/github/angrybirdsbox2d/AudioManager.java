@@ -7,11 +7,9 @@ public class AudioManager {
     private static AudioManager manager;
     private Music bgMusic;
     private float musicVol;
-    private float sfxVol;
 
     private AudioManager() {
-        musicVol = 0.0f;
-        sfxVol = 0.5f;
+        musicVol = 0.5f;
         setupMusic();
     }
 
@@ -47,17 +45,11 @@ public class AudioManager {
         }
     }
 
-    public void setSoundVolume(float vol) {
-        this.sfxVol = vol;
-    }
 
     public float getMusicVolume() {
         return musicVol;
     }
 
-    public float getSoundVolume() {
-        return sfxVol;
-    }
 
     public void dispose() {
         if (bgMusic != null) {

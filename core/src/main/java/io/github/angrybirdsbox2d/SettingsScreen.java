@@ -48,8 +48,6 @@ public class SettingsScreen implements Screen {
 
         createHeader(settingsPanel);
         createMusicControls(settingsPanel);
-        createSoundControls(settingsPanel);
-
         setupWindowPosition(settingsPanel);
         uiStage.addActor(settingsPanel);
     }
@@ -93,21 +91,6 @@ public class SettingsScreen implements Screen {
         panel.add(musicSlider).width(SLIDER_WIDTH).padBottom(20).row();
     }
 
-    private void createSoundControls(Table panel) {
-        Label soundLabel = new Label("Sound Effects:", uiSkin);
-        soundLabel.setColor(Color.WHITE);
-        panel.add(soundLabel).padLeft(25).padBottom(5).row();
-
-        Slider soundSlider = new Slider(0f, 1f, 0.1f, false, uiSkin);
-        soundSlider.setValue(AudioManager.getInstance().getSoundVolume());
-        soundSlider.addListener(new ChangeListener() {
-            @Override
-            public void changed(ChangeEvent event, Actor actor) {
-                AudioManager.getInstance().setSoundVolume(soundSlider.getValue());
-            }
-        });
-        panel.add(soundSlider).width(SLIDER_WIDTH).padBottom(30).row();
-    }
 
     private void setupWindowPosition(Table panel) {
         panel.setSize(SETTINGS_WIDTH, SETTINGS_HEIGHT);
